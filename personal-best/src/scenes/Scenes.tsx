@@ -1,5 +1,5 @@
 import { AbsoluteFill, Sequence, useVideoConfig } from 'remotion';
-import { SHOT_1, SHOT_2, SHOT_3, SHOT_4, SHOT_5, SHOT_6, SHOT_7, SHOT_8 } from '../timeline';
+import { SHOT_1, SHOT_2, SHOT_3, SHOT_4, SHOT_5, SHOT_6, SHOT_7, SHOT_8, SHOT_9, SHOT_10 } from '../timeline';
 import { Shot01Drawer } from './Shot01Drawer';
 import { Shot02OverheadBed } from './Shot02OverheadBed';
 import { Shot03KitchenMorning } from './Shot03KitchenMorning';
@@ -8,6 +8,8 @@ import { Shot05GuitarChord } from './Shot05GuitarChord';
 import { Shot06PhoneInsert } from './Shot06PhoneInsert';
 import { Shot07KitchenWalk } from './Shot07KitchenWalk';
 import { Shot08CloseUpSwipe } from './Shot08CloseUpSwipe';
+import { Shot09KitchenFloor } from './Shot09KitchenFloor';
+import { Shot10HighWide } from './Shot10HighWide';
 
 export type ScenesProps = {
   /** Vertical version: shot 8 draws its hand in screen space instead (section 10). */
@@ -42,6 +44,12 @@ export const Scenes: React.FC<ScenesProps> = ({ vertical = false }) => {
       </Sequence>
       <Sequence name="Shot 8: Close-up swipe" from={SHOT_8.from} durationInFrames={SHOT_8.durationInFrames} premountFor={fps}>
         <Shot08CloseUpSwipe showHand={!vertical} />
+      </Sequence>
+      <Sequence name="Shot 9: Kitchen floor" from={SHOT_9.from} durationInFrames={SHOT_9.durationInFrames} premountFor={fps}>
+        <Shot09KitchenFloor />
+      </Sequence>
+      <Sequence name="Shot 10: High wide" from={SHOT_10.from} durationInFrames={SHOT_10.durationInFrames} premountFor={fps}>
+        <Shot10HighWide />
       </Sequence>
     </AbsoluteFill>
   );

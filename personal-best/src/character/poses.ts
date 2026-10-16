@@ -119,13 +119,15 @@ export const runUpStairsCycle = (frame: number): CycleResult & { readonly stance
   const f = ((frame % RUN_FRAMES) + RUN_FRAMES) % RUN_FRAMES;
   const stance: 'L' | 'R' = f < RUN_STEP_SPLIT ? 'L' : 'R';
   const stepT = stance === 'L' ? f / RUN_STEP_SPLIT : (f - RUN_STEP_SPLIT) / (RUN_FRAMES - RUN_STEP_SPLIT);
-  // Stance leg: from bent-forward on landing to extended back at push-off.
-  const stanceHip = 55 - 80 * stepT; // 55° → −25°
-  const stanceKnee = 70 * (1 - stepT) + 8 * stepT; // 70° → 8°
-  // Swing leg: drives from behind to a high knee (95°) ready for the next step.
+  // Stance leg: from bent-forward on landing (hip 55°, knee 70°) to extended
+  // back at push-off (−25°, 8°). The swing leg runs the reverse, driving the
+  // knee up to about 95° mid-swing, so every footfall hands over seamlessly.
+  const e = poseEase(stepT);
   const s = Math.sin(stepT * Math.PI);
-  const swingHip = -25 + 95 * stepT; // −25° → 70°
-  const swingKnee = 40 + 55 * s + 10 * stepT; // peaks near 95°
+  const stanceHip = 55 - 80 * stepT;
+  const stanceKnee = 70 - 62 * stepT;
+  const swingHip = -25 + 80 * e + 18 * s;
+  const swingKnee = 8 + 62 * stepT + 56 * s;
   const pump = 40 * Math.cos(stepT * Math.PI); // arms pump ±40°, opposite to the legs
   const legs =
     stance === 'L'

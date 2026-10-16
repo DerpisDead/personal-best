@@ -71,6 +71,8 @@ export type RigProps = {
   /** Torso breathing scale (shot 10). */
   readonly torsoScale?: number;
   readonly backpack?: boolean;
+  /** Vertical squash of a hand (e.g. 0.92 as a caught orange lands in it). */
+  readonly handSquash?: Partial<Record<Side, number>>;
   /** Shift the hip joints (and so the legs) in body F, e.g. feet planted forward while seated. */
   readonly legForward?: number;
 };
@@ -344,6 +346,7 @@ export const Rig: React.FC<RigProps> = (props) => {
     headRoll = 0,
     torsoScale = 1,
     backpack = false,
+    handSquash,
   } = props;
   const colors = outfitColors(outfit);
   const l = norm(light);
@@ -411,7 +414,9 @@ export const Rig: React.FC<RigProps> = (props) => {
           {outfit === 'hoodie' ? (
             <Capsule a={cuffStart} b={a.wrist} w={BODY.forearm.w + 1} fill={C.hoodieShadow} ext={BODY.forearm.w / 2} />
           ) : null}
-          <Hand at={a.hand} angle={foreAng} thumbSide={side === 'R' ? -1 : 1} light={l} />
+          <g transform={`translate(${a.hand.x} ${a.hand.y}) scale(1 ${handSquash?.[side] ?? 1}) translate(${-a.hand.x} ${-a.hand.y})`}>
+            <Hand at={a.hand} angle={foreAng} thumbSide={side === 'R' ? -1 : 1} light={l} />
+          </g>
           {item ? (
             <g transform={`scale(${1 / scale}) translate(${-x} ${-y})`}>
               {item({ x: x + a.hand.x * scale, y: y + a.hand.y * scale, angle: foreAng, scale })}

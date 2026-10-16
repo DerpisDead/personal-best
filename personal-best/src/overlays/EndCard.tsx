@@ -8,7 +8,9 @@ import { CHAPTER_OK, CTA_LINE_OK, PlaceholderWarning } from './PlaceholderWarnin
 
 const POS = {
   landscape: { ctaTop: 820, creditTop: 930, maxWidth: 1600 },
-  vertical: { ctaTop: 1180, creditTop: 1300, maxWidth: 940 },
+  // Spec max-width is 940; centered text that wide would reach x 1010, inside
+  // the right-side platform-button zone (x > 940, y 900–1700). 800 keeps it clear.
+  vertical: { ctaTop: 1180, creditTop: 1300, maxWidth: 800 },
 } as const;
 
 /**

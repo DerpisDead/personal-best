@@ -8,7 +8,8 @@ import { PlaceholderWarning, WHY_LINE_OK } from './PlaceholderWarning';
 
 const POS = {
   landscape: { left: 120, bottom: 178, maxWidth: 1100, sourceBottom: 130 },
-  vertical: { left: 64, bottom: 520, maxWidth: 900, sourceBottom: 470 },
+  // Spec max-width 900 would reach x 964, inside the right-side safe zone; 876 stops at x 940.
+  vertical: { left: 64, bottom: 520, maxWidth: 876, sourceBottom: 470 },
 } as const;
 
 /**

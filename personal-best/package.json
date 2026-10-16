@@ -1,7 +1,7 @@
 {
   "name": "personal-best",
   "version": "1.0.0",
-  "description": "My Remotion video",
+  "description": "Personal Best: a 29-second animated HOSA PSA built with Remotion",
   "repository": {},
   "license": "UNLICENSED",
   "private": true,
@@ -24,7 +24,13 @@
     "typescript": "5.9.3"
   },
   "scripts": {
-    "dev": "remotion studio",
+    "dev": "npm run audio:check && remotion studio",
+    "audio:temp": "node scripts/make-temp-audio.mjs",
+    "audio:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-audio.mjs",
+    "verify": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-timeline.mjs",
+    "render:16x9": "npm run audio:check && remotion render PersonalBest out/personal-best-16x9.mp4 --codec=h264 --crf=18",
+    "render:9x16": "npm run audio:check && remotion render PersonalBestVertical out/personal-best-9x16.mp4 --codec=h264 --crf=18",
+    "render": "npm run render:16x9 && npm run render:9x16",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc"

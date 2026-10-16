@@ -1,4 +1,5 @@
 import { Composition } from 'remotion';
+import { HudTest } from './hud/HudTest';
 import { PersonalBestVideo } from './Video';
 import { PersonalBestVertical } from './vertical/Vertical';
 
@@ -22,6 +23,14 @@ export const RemotionRoot: React.FC = () => {
         width={1080}
         height={1920}
         defaultProps={{ clickTrack: false }}
+      />
+      <Composition
+        id="HudTest"
+        component={HudTest}
+        durationInFrames={870}
+        fps={30}
+        width={1920}
+        height={1080}
       />
     </>
   );

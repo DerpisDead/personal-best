@@ -108,11 +108,19 @@ export const alpha = (hex: string, a: number): string => {
 export const LANDSCAPE = { width: 1920, height: 1080 } as const;
 export const PORTRAIT = { width: 1080, height: 1920 } as const;
 
-/** HUD panel (section 6). Height works out to 188 px, spanning y 64–252. */
+/**
+ * HUD panel (section 6). Height works out to 188 px, spanning y 64–252.
+ *
+ * Width: the spec says 440 px, but at the spec's type sizes the widest label
+ * row ("0:09.50  PHYSICAL EXERCISE") is 462 px of glyphs and the inner width
+ * of a 440 px panel is only 385 px, so the text spilled out of the panel.
+ * 520 px is the smallest round width that fits (462 + 2×26 padding + 3 border).
+ * The panel spans x 1304–1824 (16:9) and x 496–1016 (9:16).
+ */
 export const HUD_SIZE = {
   landscape: { right: 96, top: 64 },
   vertical: { right: 64, top: 220 },
-  width: 440,
+  width: 520,
   padX: 26,
   padY: 22,
   radius: 16,

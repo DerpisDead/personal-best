@@ -37,6 +37,8 @@ export type OverheadSleeperProps = {
   readonly roll?: number;
   readonly shiftX?: number;
   readonly light: Pt;
+  /** Draw only the body (under the blanket) or only the arms (over it). Default: both. */
+  readonly part?: 'all' | 'body' | 'arms';
 };
 
 export const SLEEPER = {
@@ -102,6 +104,7 @@ export const OverheadSleeper: React.FC<OverheadSleeperProps> = ({
   roll = 0,
   shiftX = 0,
   light,
+  part = 'all',
 }) => {
   const hips = { x: headX, y: headY + SLEEPER.hipY };
   const shoulders = sleeperShoulders({ headX, headY, roll, shiftX });
@@ -113,6 +116,13 @@ export const OverheadSleeper: React.FC<OverheadSleeperProps> = ({
   const torsoLight = lightInto(light, roll);
   const hairClip = useSvgId('sleeper-hair');
 
+  const arms = (
+    <>
+      <Arm shoulder={shoulders.L} hand={handL} bend={1} light={light} />
+      <Arm shoulder={shoulders.R} hand={handR} bend={-1} light={light} />
+    </>
+  );
+  if (part === 'arms') return <g>{arms}</g>;
   return (
     <g>
       {/* Legs (mostly under the blanket) */}
@@ -188,8 +198,7 @@ export const OverheadSleeper: React.FC<OverheadSleeperProps> = ({
         <path d={`M ${headX - 11} ${headY + 28} Q ${headX} ${headY + 30} ${headX + 11} ${headY + 28}`} stroke={C.mouthLine} strokeWidth={3} fill="none" strokeLinecap="round" />
       </g>
       {/* Arms (scene space, from the rolled shoulders) */}
-      <Arm shoulder={shoulders.L} hand={handL} bend={1} light={light} />
-      <Arm shoulder={shoulders.R} hand={handR} bend={-1} light={light} />
+      {part === 'all' ? arms : null}
     </g>
   );
 };

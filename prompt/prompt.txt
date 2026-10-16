@@ -1,0 +1,600 @@
+# Build "Personal Best": a 29-second animated PSA in Remotion
+
+You are building a frame-accurate 2D animated video with Remotion (React). It is a 29.0-second public service announcement for the HOSA PSA event (topic: "Maintain My Brain: Practicing the Pillars of Brain Health"). Everything you need is in this spec: timing to the frame, every color as a hex value, every size in pixels. Where this spec gives a number, use that number. Where it describes something without a number, choose values that fit the style rules in section 4 and tell me what you chose.
+
+**The story in one paragraph:** A teen "speedruns" Hilarity for Charity's five brain-health habits against a game-style timer in the top-right corner: phone into a drawer and lights out (Sleep), a no-look catch of an orange over oatmeal (Nutrition), sprinting up stadium steps (Physical Exercise), finally landing a hard guitar chord (Cognitive Fitness). The last split is calling his grandmother (Emotional Well-Being). He starts rushing the call, looks up at the timer, swipes the timer off the screen with his finger, and sits down on the kitchen floor to keep talking. The music cuts to silence. Then the game flashes PERSONAL BEST anyway.
+
+---
+
+## 0. Ground rules (read before anything else)
+
+1. **Do not write any words that appear in the video** beyond the exact strings in this spec. Every team-written line comes from `src/teamText.ts` placeholders (section 8). Never fill those placeholders yourself, even with "example" text.
+2. **Do not generate voices, dialogue or music.** The team supplies all real audio. You only generate clearly labeled `TEMP_` timing placeholders (section 9).
+3. **No logos, brand marks, real app interfaces, real products, copyrighted characters, or imitations of any studio's art style.** Everything is drawn from scratch in SVG and CSS from this spec. No external images, stock assets or icon libraries.
+4. **Deterministic rendering:** never use `Math.random()` or `Date.now()`. Use Remotion's `random(seed)` for anything that needs variation.
+5. **Units:** all positions are in px in a 1920×1080 design space, origin at top-left, unless a section says otherwise. All times are in frames at 30 fps. "f195" means frame 195.
+6. **Default easing:** `Easing.inOut(Easing.cubic)` unless a step says otherwise. All cuts are hard cuts except the whip-pan between shots 3 and 4.
+7. **Work in milestones (section 12).** Start by showing me a short build plan. Pause after milestones 3, 6 and 9 to show me the review stills.
+8. Ask before installing anything outside this project folder.
+
+---
+
+## 1. Project setup
+
+- Requires Node.js (current LTS) and Git.
+- If this folder is empty, scaffold here: `npx create-video@latest --yes --blank --no-tailwind .` then `npm i`. If it isn't empty, scaffold into a subfolder named `personal-best` and work there.
+- Add `@remotion/google-fonts`. Load **Inter** (weights 500, 600, 700, 800) and **JetBrains Mono** (weights 600, 700). Both are SIL Open Font License fonts.
+- File layout:
+  - `src/Root.tsx`: registers compositions
+  - `src/constants.ts`: palette, sizes, typography
+  - `src/timeline.ts`: every frame number in this spec, exported as named constants
+  - `src/teamText.ts`: the four team placeholders
+  - `src/hud/`: `Hud.tsx`, `formatTime.ts`, `Pips.tsx`, `PersonalBest.tsx`
+  - `src/character/`: `Rig.tsx`, `poses.ts`, `Face.tsx`, `OverheadSleeper.tsx`, `CloseUpFace.tsx`, `Hands.tsx`
+  - `src/scenes/`: `Shot01Drawer.tsx` … `Shot10HighWide.tsx`
+  - `src/overlays/`: `WhyLine.tsx`, `EndCard.tsx`, `Grain.tsx`, `Vignette.tsx`, `PlaceholderWarning.tsx`
+  - `src/audio/`: `manifest.ts`, `AudioTrack.tsx`, `available.json` (generated)
+  - `src/vertical/`: `Vertical.tsx`, `reframe.ts`
+  - `scripts/`: `verify-timeline.mjs`, `make-temp-audio.mjs`, `check-audio.mjs`
+  - `review/16x9/`, `review/9x16/`: review stills
+  - `out/`: final renders
+  - `public/audio/`: team audio files plus `TEMP_` files
+
+---
+
+## 2. Compositions
+
+| ID | Size | FPS | Frames | Duration |
+|---|---|---|---|---|
+| `PersonalBest` | 1920×1080 | 30 | 870 | 29.0 s |
+| `PersonalBestVertical` | 1080×1920 | 30 | 870 | 29.0 s |
+| `HudTest` | 1920×1080 | 30 | 870 | HUD alone on #444444, for testing |
+| `RigTest` | 1920×1080 | 30 | 300 | every pose in section 5, 30 frames each, on #EFE7DA |
+
+No black lead or tail inside the compositions. Frame 0 is the first image; frame 869 is the last.
+
+---
+
+## 3. Master timeline
+
+At 120 BPM one beat is 15 frames. Every cut, chime, music start and stop, the swipe, and every text entrance below is a multiple of 15 frames.
+
+| Shot | Name | Frames | Seconds | Habit label in HUD |
+|---|---|---|---|---|
+| 1 | Drawer | 0–59 | 0.0–2.0 | SLEEP |
+| 2 | Overhead bed | 60–149 | 2.0–5.0 | SLEEP (completes f105) |
+| 3 | Kitchen morning | 150–224 | 5.0–7.5 | NUTRITION (completes f195) |
+| 4 | Stadium steps | 225–299 | 7.5–10.0 | PHYSICAL EXERCISE (completes f285) |
+| 5 | Guitar chord | 300–389 | 10.0–13.0 | COGNITIVE FITNESS (completes f360) |
+| 6 | Phone insert | 390–434 | 13.0–14.5 | EMOTIONAL WELL-BEING |
+| 7 | Kitchen walk | 435–524 | 14.5–17.5 | EMOTIONAL WELL-BEING |
+| 8 | Close-up swipe | 525–599 | 17.5–20.0 | swiped off at f570–585 |
+| 9 | Kitchen floor | 600–764 | 20.0–25.5 | none |
+| 10 | High wide | 765–869 | 25.5–29.0 | PERSONAL BEST at f765 |
+
+**Key events (export all of these from `timeline.ts`):**
+
+| Frame | Event | On beat grid |
+|---|---|---|
+| 0 | HUD appears, timer starts, start tone | Yes |
+| 45 | Drawer shuts (thunk, 4 px camera shake f45–51) | Yes |
+| 90 | Lamp click; lighting switches to night | Yes |
+| 105 | Hard cut night to day inside shot 2; SLEEP completes; music starts | Yes |
+| 150 | Label → NUTRITION | Yes |
+| 195 | Orange caught; NUTRITION completes | Yes |
+| 210 | Whip-pan out begins | Yes |
+| 225 | Whip-pan in lands shot 4; label → PHYSICAL EXERCISE | Yes |
+| 285 | Top step; PHYSICAL EXERCISE completes | Yes |
+| 300 | Label → COGNITIVE FITNESS | Yes |
+| 315 | First strum (buzz) | Yes |
+| 360 | Second strum (clean); COGNITIVE FITNESS completes | Yes |
+| 390 | Label → EMOTIONAL WELL-BEING | Yes |
+| 396 | Thumb taps call | No |
+| 414 | Thumb taps speaker | No |
+| 480 | Music begins crossfade to muffled version | Yes |
+| 510 | He glances up at the timer | Yes |
+| 570 | Finger touches HUD; swipe begins; music hard stop | Yes |
+| 585 | HUD fully off-screen (end of the swipe) | No |
+| 600 | Shot 9 begins (slide down the cabinet f600–640) | Yes |
+| 660 | Laugh begins (f660–690) | Yes |
+| 675 | Why-line appears | Yes |
+| 705 | Guitar chord callback (audio) | Yes |
+| 765 | PERSONAL BEST appears | Yes |
+| 771 | Fifth pip fills | No |
+| 795 | Call to action and credit line appear | Yes |
+| 840 | Silence for the last second | Yes |
+| 869 | Last frame | No |
+
+Other off-grid frames that are fine (sound effects and small actions only): footfalls 233, 241, 248, 256, 263, 271, 278; keys 465.
+
+---
+
+## 4. Global art direction
+
+**Style:** flat vector illustration with soft gradient shading. No outlines. Realistic human proportions (7.5 heads tall), no exaggerated cartoon features, rounded geometry. Each shape gets one shadow tone (12–18% darker) on the side away from the scene's key light and one highlight tone (about 10% lighter) toward it. The goal is believable, real-life moments: it should read as illustrated realism, not a cartoon.
+
+**Finishing layers on every shot, in this z-order:** scene art → vignette → grain → why-line / end card text → HUD / PERSONAL BEST.
+- Vignette: `radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.18) 100%)`.
+- Grain: full-frame SVG `feTurbulence` (`baseFrequency 0.9`, `numOctaves 2`), new seed every 2 frames, opacity 0.04, `mix-blend-mode: overlay`. The HUD and text sit above the grain so they stay crisp.
+
+**Handheld camera (shots 4, 6, 7):** deterministic shake with t in seconds:
+`x = A·sin(2π·0.7·t + 1.3) + 0.5A·sin(2π·1.9·t)`, `y = A·sin(2π·0.9·t + 0.4) + 0.5A·sin(2π·2.3·t + 2.1)`, `rotation = 0.15·sin(2π·0.5·t)` degrees. A = 2 px in shot 4, 3 px in shots 6 and 7.
+
+**Whip-pan blur:** apply an SVG `feGaussianBlur` with `stdDeviation="X 0"` (horizontal only) to the whole scene group, X ramping as specified in shots 3 and 4.
+
+### Palette (`src/constants.ts`)
+
+```ts
+export const C = {
+  // HUD and text
+  hudBg: 'rgba(10,12,16,0.62)', hudBorder: 'rgba(255,255,255,0.14)',
+  hudText: '#FFFFFF', hudLabel: '#E6E9EF', gold: '#F5C542',
+  goldGlow: 'rgba(245,197,66,0.55)', goldBorderFlash: 'rgba(245,197,66,0.90)',
+  goldPillBg: 'rgba(245,197,66,0.16)', pipEmptyStroke: 'rgba(255,255,255,0.50)',
+  textWhite: '#FFFFFF', textSoft: '#E6E9EF', textSource: '#C9D1DC',
+  scrim: 'rgba(0,0,0,0.55)', warning: '#FF00FF',
+
+  // Lead character (set skin and hair to match your lead; these are placeholders)
+  skin: '#B98260', skinShadow: '#9C6A4C', skinHighlight: '#CF9A78',
+  hair: '#231A15', eyes: '#1A1A1A', brows: '#231A15', catchlight: '#FFFFFF',
+  mouthLine: '#6B3A2E', mouthOpen: '#5A2A22', teeth: '#FFFFFF',
+  hoodie: '#2E5AAC', hoodieShadow: '#24498C', hoodieHighlight: '#4A74C2', drawstring: '#E8E8E8',
+  jeans: '#34445F', jeansShadow: '#283550',
+  shoeUpper: '#F4F4F2', shoeSole: '#C9A27A', shoeLace: '#DADADA', sock: '#FFFFFF',
+  pjShirt: '#A7ADB5', pjPants: '#4B5563', backpack: '#3F4A3C',
+  // Family member's arm in shot 3 (placeholder)
+  skin2: '#8D5A3B', sleeve2: '#8E6C8A',
+
+  // Bedroom
+  wallNightInner: '#6B4A33', wallNightOuter: '#1A1410', wallDay: '#B9C3CF',
+  floorNight: '#3A3F4A', floorNightLine: '#333844', floorDay: '#CDB89A', floorDayLine: '#B9A383',
+  bedFrame: '#6B4A2F', headboard: '#5A3D26', sheet: '#F7F7F2', sheetShadow: '#E2E2DC',
+  sheetWrinkle: '#E6E3D8', pillow: '#FFFFFF', pillowSeam: '#EAEAE4', pillowDent: '#EDEBE4',
+  blanket: '#E0A93B', blanketFold: '#C8922C', blanketUnderside: '#F1D07A',
+  nightstand: '#6B4A2F', nightstandTop: '#7A5536', nightstandEdge: '#9A6E48',
+  drawerInside: '#2A1C12', knob: '#C9A227', knobHighlight: '#E8C766',
+  lampShadeOn: '#F4E1C1', lampInnerGlow: '#FFD8A0', lampGlow: '#FFB45C',
+  lampShadeOff: '#EDE3CF', lampBase: '#3A3A3A',
+  nightOverlay: '#1B2A4A', moonlight: '#6E8FC7', sunShaft: '#FFE6A8', dust: '#FFF6D6',
+
+  // Kitchen
+  kitchenWall: '#EFE7DA', kitchenWallEvening: '#CDBFA8', backsplash: '#E7DDCC', tileLine: '#DCD0BD',
+  cabinet: '#5E8C8A', cabinetShadow: '#4A7270', toeKick: '#2E4544', cabinetHandle: '#B8BEC6',
+  counterTop: '#D9CBB4', counterEdge: '#C2B39A', floorWood: '#B07D4F', plankLine: '#9A6A41',
+  windowFrame: '#FFFFFF', windowFrameEvening: '#E9E2D6',
+  windowMorningTop: '#CFE8FF', windowMorningBottom: '#EAF5FF', morningSpill: '#FFF4D6',
+  windowLateTop: '#FFD9A6', windowLateBottom: '#F2B36B', lateSunPatch: '#FFC98A',
+  windowEveningTop: '#3A5A8C', windowEveningBottom: '#1F2F52', distantLights: '#FFD9A6',
+  pendantShade: '#F4E1C1', pendantInner: '#FFE3B0', pendantGlow: '#FFC27A', pendantCord: '#2A2A2A',
+  dimOverlay: '#0E1726', doorJamb: '#2A2320',
+  bowl: '#FFFFFF', bowlRim: '#DADADA', oatmeal: '#E8D9B5',
+  blueberry: '#3B4BA8', blueberryHighlight: '#6C7BD9', spoon: '#C0C6CE',
+  orange: '#F28C28', orangeHighlight: '#FFB15E', leaf: '#3E8E41',
+  keyRing: '#B8BEC6', keyGold: '#D4AF37',
+
+  // Stadium
+  skyTop: '#DDE3EA', skyBottom: '#F2F4F7', field: '#4F8A4B',
+  stepTop: '#BFC3C7', stepRiser: '#9AA0A6', stepShadow: '#7D838A', rail: '#6E7681',
+
+  // Guitar
+  fretboard: '#3B2418', fret: '#BFBFBF', string: '#D9D9D9', inlay: '#EDE7D9', nut: '#F1EBDD',
+  guitarBody: '#E3B778', guitarBodyEdge: '#C9964F', soundhole: '#1A120C', warmPatch: '#FFE6A8',
+
+  // Phone (generic, original UI)
+  phoneBody: '#1C1C1E', cameraBump: '#2A2A2D', lens: '#0B0B0C', screenBg: '#121417',
+  screenGlow: '#9FC3FF', avatar: '#5E8C8A', callGreen: '#30A46C', endRed: '#E5484D',
+  button: '#2A2F36', buttonActive: '#FFFFFF', statusDots: '#9AA4B2',
+  phoneBlurTop: '#E9D8C0', phoneBlurBottom: '#C9A98A',
+
+  // Close-up (shot 8)
+  cuBgTop: '#E8C9A0', cuBgBottom: '#B98E6A', bokehA: '#F2B36B', bokehB: '#FFD9A6',
+  warmKey: '#FFC27A', coolRim: '#3A5A8C',
+} as const;
+```
+
+### Typography
+
+| Use | Font | Weight | Size | Other |
+|---|---|---|---|---|
+| HUD timer | JetBrains Mono | 700 | 68 px | `font-variant-numeric: tabular-nums`, letter-spacing −0.01em, `C.hudText` |
+| HUD label | Inter | 700 | 30 px | uppercase, letter-spacing 0.08em, `C.hudLabel` |
+| HUD split time | JetBrains Mono | 600 | 26 px | `C.gold` |
+| "8 HRS" pill | Inter | 700 | 20 px | `C.gold` on `C.goldPillBg`, padding 4px 10px, radius 999px |
+| Phone name | Inter | 600 | 56 px | `C.textWhite` |
+| Phone avatar initial | Inter | 700 | 96 px | `C.textWhite` |
+| Why-line | Inter | 700 | 56 px | line-height 1.15, `C.textWhite`, text-shadow `0 2px 10px rgba(0,0,0,0.45)` |
+| Source tag | Inter | 500 | 24 px | `C.textSource` |
+| PERSONAL BEST | Inter | 800 | 84 px | letter-spacing 0.06em, `C.gold`, text-shadow `0 0 28px rgba(245,197,66,0.65)` |
+| Call to action | Inter | 800 | 72 px | `C.textWhite`, text-shadow `0 2px 14px rgba(0,0,0,0.55)` |
+| Credit line | Inter | 500 | 26 px | `C.textSoft` at 90% opacity |
+| Placeholder warning | Inter | 600 | 32 px | `C.warning` |
+
+---
+
+## 5. The character rig (`src/character/`)
+
+Build one parametric rig used in shots 3, 4, 7, 9 and 10, plus three special drawings: the overhead sleeper (shot 2), the close-up face (shot 8), and large hands (shots 1, 5, 6, 8).
+
+**Body parts at scale 1.0 (standing height 640 px):**
+
+| Part | Shape | Size | Color |
+|---|---|---|---|
+| Head | ellipse | rx 40, ry 48 | `skin` |
+| Hair | cap path over the top 40% of the head, small fringe | follows head | `hair` |
+| Ears | ellipse (3/4 views only) | 9×13 | `skinShadow` |
+| Neck | rect | 26×22 | `skinShadow` |
+| Torso | rounded rect, radius 30 | 128×196 | `hoodie` or `pjShirt` |
+| Hood ring | rounded path at the neckline | 14 px thick | `hoodieShadow` |
+| Pocket | trapezoid at torso bottom center | 84×44 | `hoodieShadow` |
+| Drawstrings | two lines | 3×40 | `drawstring` |
+| Upper arm | capsule | 30×92 | sleeve color |
+| Forearm | capsule | 28×86 | sleeve color (bare `skin` in pajamas) |
+| Hand | circle + thumb ellipse | r 16; thumb 8×12 | `skin` |
+| Pelvis | rounded rect | 120×40 | `jeans` or `pjPants` |
+| Thigh | capsule | 40×116 | `jeans` or `pjPants` |
+| Shin | capsule | 36×108 | `jeans` or `pjPants` |
+| Shoe | rounded rect, radius 10, 6 px sole, 3 lace lines | 74×26 | `shoeUpper`, `shoeSole`, `shoeLace` |
+
+**Shading:** each limb gets a strip 35% of its width in the matching shadow color on the side away from the key light, and a strip 15% of its width about 10% lighter toward it. The key light direction is given in each shot.
+
+**Face (front and 3/4 views, scale 1.0):** eyes are ellipses 6×8 `eyes` at (±15, −4) from head center; brows are rounded rects 18×4 `brows` at (±15, −18); the nose is a small curved path in `skinShadow`; the mouth is a 3 px stroke in `mouthLine`, 22 px wide.
+
+**Expressions:** neutral; focused (brows 3 px lower, angled 8° inward); glance-up (pupils +3 x, −3 y, head tilted −12°); exhale (brows 2 px lower and flatter, mouth softened); laugh (mouth becomes an open ellipse 24×14 `mouthOpen` with a 20×5 `teeth` bar, eyes become squinting arcs, head tilts back 6°); smile (mouth arc curving up).
+
+**Poses** (`poses.ts`; angles in degrees from straight down, positive = toward the direction the character faces):
+
+| Pose | Torso | Shoulder L / Elbow L | Shoulder R / Elbow R | Hip L / Knee L | Hip R / Knee R |
+|---|---|---|---|---|---|
+| STAND | 0 | 6 / 10 | −4 / 8 | 2 / 0 | −2 / 0 |
+| HOLD_BOWL | 0 | 20 / 85 | 15 / 95 | 2 / 0 | −2 / 0 |
+| CATCH | 0 | 20 / 85 | 150 / 20 | 2 / 0 | −2 / 0 |
+| HOLD_PHONE_CHEST | 0 | 25 / 110 | −4 / 8 | — | — |
+| SIT_FLOOR | −8 | 40 / 70 | 30 / 60 | 90 / 110 | 90 / 110 |
+
+- WALK: 16-frame cycle; hips swing ±22°, knees 0–35°, arms swing opposite at ±18°.
+- RUN_UP_STAIRS: 15-frame cycle with two footfalls per cycle (8 frames then 7 frames); knees lift to 95°, arms pump ±40°.
+- SLIDE_DOWN: interpolate from STAND (torso −6°, back against the cabinet) to SIT_FLOOR while the hips move down 220 px.
+- Interpolate between poses with the default easing.
+
+The `RigTest` composition shows each pose and both cycles for 30 frames, labeled in small gray text (`#666666`, Inter 500, 20 px) for my review only. These labels never appear in the PSA.
+
+---
+
+## 6. The HUD (`src/hud/`)
+
+**Position (16:9):** absolutely positioned, `right: 96px; top: 64px; width: 440px`. Padding `22px 26px`, radius 16 px, background `C.hudBg`, border `1.5px solid C.hudBorder`, `backdrop-filter: blur(6px)`. The panel spans about x 1384–1824, y 64–252.
+
+**Rows, all right-aligned:**
+1. Timer, 68 px tall line.
+2. Margin-top 10 px: `[split time] [label] [8 HRS pill]`, items vertically centered, gap 12 px.
+3. Margin-top 14 px: five pips, 16 px diameter, gap 10 px. Empty: transparent fill, 2 px stroke `C.pipEmptyStroke`. Filled: `C.gold` fill and stroke, `box-shadow: 0 0 12px rgba(245,197,66,0.6)`.
+
+**Timer text:** use integer math to avoid floating-point errors:
+
+```ts
+export const formatTime = (frame: number) => {
+  const totalCs = Math.floor((frame * 100) / 30);
+  const m = Math.floor(totalCs / 6000);
+  const s = Math.floor(totalCs / 100) % 60;
+  const cs = totalCs % 100;
+  return `${m}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+};
+```
+
+The timer always shows the video's real elapsed time.
+
+**Behavior by frame:**
+- f0–3: fade in (opacity 0→1) and slide down (translateY −8→0).
+- Labels: f0–149 SLEEP; f150–224 NUTRITION; f225–299 PHYSICAL EXERCISE; f300–389 COGNITIVE FITNESS; f390 onward EMOTIONAL WELL-BEING (never completes during the run).
+- **Completion at frames 105, 195, 285 and 360:**
+  - label color animates `C.hudLabel` → `C.gold` over 4 frames and stays gold until the label changes;
+  - the split time fades in to the left of the label (opacity 0→1, translateX 8→0, 6 frames), showing `formatTime(completionFrame)`: "0:03.50", "0:06.50", "0:09.50", "0:12.00";
+  - the next pip fills with a spring that overshoots (scale 0.6 → 1.25 → 1.0 within 9 frames);
+  - the panel border flashes `C.goldBorderFlash` at the completion frame and eases back to `C.hudBorder` by +8 frames.
+- **Label change at frames 150, 225, 300 and 390:** the old label and split time fade out over 3 frames; the new label rises from translateY +10 with opacity 0→1 over 6 frames.
+- **"8 HRS" pill:** visible f105–149 only, fading in over f105–110. Use exactly the string "8 HRS".
+- **Swipe exit f570–585:** the panel's x follows the fingertip in shot 8 (panel left edge = fingertip x − 16), ending at translateX +720 with `Easing.in(Easing.cubic)`. Opacity 1→0 over f578–585. A motion trail of three ghost copies at opacity 0.30, 0.18 and 0.08, offset −28, −56 and −84 px, visible only during f570–585. From f586 on, the HUD is not rendered.
+
+**PERSONAL BEST (`PersonalBest.tsx`), f765–869:**
+- Same anchor as the HUD (`right: 96px; top: 64px`), no panel background. Exact text: "PERSONAL BEST".
+- Spring scale-in 0.86→1.0 (damping 12, stiffness 180, mass 0.6) with opacity 0→1 over f765–769.
+- Gold underline bar, 6 px tall, 10 px below the text, width growing 0→100% of the text width over f765–780.
+- 14 px below the underline: the pip row with four pips already gold. The fifth pip fills at f771 with the same spring, plus 8 gold particles (r 3 px) that radiate 30 px outward and fade over 12 frames.
+- Glow pulse: text-shadow blur 28 → 40 → 28 px over f765–795.
+
+---
+
+## 7. Shot-by-shot spec (`src/scenes/`)
+
+Each shot is a component inside a `<Sequence>` using the frames in section 3. Coordinates are in the 1920×1080 design space.
+
+### Shot 1: Drawer (f0–59). Extreme close-up, side angle at nightstand height, static. Key light: lamp, upper right.
+1. Wall: full-frame radial gradient centered (1500, 220), radius 1100, `wallNightInner` → `wallNightOuter`.
+2. Lamp (upper right, partly in frame): base rect x 1520–1580, y 330–520, `lampBase`. Shade trapezoid with its top edge x 1440–1660 at y 140 and bottom edge x 1390–1710 at y 330, `lampShadeOn`, with an inner bottom ellipse in `lampInnerGlow`. Glow: radial gradient at (1550, 300), radius 650, `lampGlow` at 35% → 0.
+3. Nightstand top: rect x 0–1920, y 520–560, `nightstandTop`, with a 3 px `nightstandEdge` highlight line at y 520.
+4. Cabinet body: rect y 560–1080, `nightstand`, about 6% lighter toward the right where the lamp hits.
+5. Drawer: front rect x 380–1540, y 600–940, `nightstand` 6% lighter, 10 px bevel shadow. Knob: circle r 26 at (960, 770), `knob`, with a `knobHighlight` crescent.
+   - Open at f0: a 120 px dark band (`drawerInside`) shows between the nightstand top and the drawer front; the drawer front sits 120 px lower and at scale 1.04 (closer to camera).
+   - Closing f30–45: band height 120→0, drawer front y offset 120→0 and scale 1.04→1.0, `Easing.in(Easing.quad)`.
+   - f45: closed. Camera shake 4 px decaying to 0 by f51.
+6. Phone, face-down (we see the back): rounded rect 260×128, radius 22, `phoneBody`. Camera bump: 54×54 rounded square (radius 14) in `cameraBump` with three lens circles r 10 in `lens`. No logo. Screen glow leaking around the edges: 18 px outer glow in `screenGlow` at 40%.
+   - Motion: starts at (1420, 420), rotated −10°. Over f0–22 it moves on an arc to (960, 610) inside the drawer opening, rotating to 0°.
+   - f22–26: released, drops 8 px into the drawer. From then on it is masked by the drawer opening and disappears as the drawer closes.
+7. Hand (right hand at close-up scale, about 3.4× the rig): bare forearm capsule from off-frame right (2000, 300) to the wrist; palm 110×80; four finger capsules 24×70; thumb capsule 26×60; all `skin` with `skinShadow` on the left sides.
+   - f0–22: fingers wrap the phone's edges and carry it.
+   - f22–26: fingers open.
+   - f26–32: hand moves to the drawer front, palm flat, centered at (1240, 720).
+   - f30–45: hand pushes, moving with the drawer front.
+   - f45–59: hand withdraws off-frame right with `Easing.in(Easing.cubic)`.
+
+### Shot 2: Overhead bed (f60–149). Top-down, locked off.
+
+**Night (f60–104):**
+1. Floor: full frame `floorNight`, plank lines `floorNightLine` 2 px every 120 px horizontally.
+2. Bed frame: rect x 380–1540, y 20–1100 (bleeds off the bottom), `bedFrame`. Headboard: rect x 380–1540, y 20–90, `headboard`.
+3. Sheet: rect x 404–1516, y 96–1100, `sheet`, with a 20 px inner `sheetShadow` along the edges.
+4. Pillow: rounded rect x 640–1280, y 120–310, radius 48, `pillow`; seam 2 px `pillowSeam` inset 10 px; 12 px `sheetShadow` below it.
+5. Blanket: at f60 folded down, polygon covering y 700–1100 across the sheet width, `blanket`, with a 50 px `blanketFold` band along its top edge.
+6. Nightstand: rect x 110–350, y 110–330, `nightstandTop`. Lamp from above: shade circle r 78 at (230, 220) `lampShadeOn`, inner circle r 40 `lampInnerGlow`; glow radial at (230, 220), radius 700, `lampGlow` at 30%.
+7. Character from above, in pajamas:
+   - Head circle r 50 `skin` with the hair cap toward the headboard; face visible, eyes open.
+   - Torso rounded rect 210×300 `pjShirt` from y 290 to 590; arms along the sides as capsules 36×260 (sleeve `pjShirt` then `skin` forearms).
+   - Drop-in f60–74: head center ends at (960, 230). The body starts 60 px higher (translateY −60) and at scale 1.12, and settles to translateY 0 and scale 1.0 with a spring (damping 14). A soft shadow under the body goes from opacity 0 to 0.25.
+   - f74–84: he pulls the blanket up; its top edge moves y 700 → 470 with `Easing.out(Easing.cubic)`, his hands on the edge.
+   - f82–90: his left hand reaches from (760, 480) to the lamp at (300, 230).
+   - f86–92: eyes close (eyelids become arcs).
+8. f90 (lamp click, lamp off): shade becomes `lampShadeOff`, glow goes to 0, a `nightOverlay` multiply layer at 70% covers the frame, and a `moonlight` linear gradient from the right edge (x 1920 at 25%) fades to 0 at x 1100. Hold f90–104: half a second of dark blue, character barely visible.
+
+**Day, hard cut at f105 (f105–149), same coordinates:**
+1. Floor `floorDay` with plank lines `floorDayLine`.
+2. Bed empty. Blanket thrown back: polygon covering y 760–1100, with a folded corner from (1180, 760) to (1516, 900) showing `blanketUnderside`.
+3. Four curved 3 px `sheetWrinkle` strokes; pillow dent: ellipse 260×90 at (960, 220), `pillowDent`.
+4. Lamp off (`lampShadeOff`), no glow.
+5. Sun shafts: two parallelograms entering from the top-right edge and slanting down-left at 30°, widths 260 and 160 px, `sunShaft` at 35%, blurred 24 px.
+6. Dust: 12 circles, r 2–4 px, `dust` at 50%, positions from `random('dust-i')`, drifting 20 px up and 10 px right over 45 frames.
+7. HUD: SLEEP completes at f105; "8 HRS" pill.
+
+### Shot 3: Kitchen morning (f150–224). Medium shot, eye level, static. Key light: window, left.
+1. Wall: full frame `kitchenWall`, 6% lighter near the window.
+2. Window (left): outer frame x 90–560, y 130–700, 18 px `windowFrame` border; vertical mullion at x 325 and horizontal at y 415, both 12 px. Glass: vertical gradient `windowMorningTop` → `windowMorningBottom`. Light spill on the wall to the right of the window: parallelogram in `morningSpill` at 25%.
+3. Upper cabinets: x 700–1920, y 110–370, `cabinet`, doors separated by 6 px `cabinetShadow` gaps every 300 px; handles 8×70 `cabinetHandle` near the bottom edge of each door (y 290–360).
+4. Backsplash: y 370–640, `backsplash`, faint tile lines `tileLine` every 40 px horizontally and every 80 px vertically, staggered.
+5. Back counter: y 640–680 `counterTop`; lower cabinets y 680–1080 `cabinet` (mostly hidden).
+6. Island in the foreground: top surface y 760–790 `counterTop` with a 16 px `counterEdge`; front panel y 790–1080 `cabinet`.
+7. Character: rig scale 1.25, centered at x 1060, head top at y 210, visible down to mid-thigh (the island hides the rest). Hoodie and jeans. Pose HOLD_BOWL; eyes looking down at the bowl the whole shot.
+   - Bowl at (1010, 560): rim ellipse 200×64 in `bowlRim` with an `oatmeal` interior; a half-ellipse body in `bowl` beneath. Nine blueberries, r 8, `blueberry`, each with a 3 px `blueberryHighlight`, scattered on the oatmeal.
+   - Spoon: bowl ellipse 20×30 plus handle 8×90, `spoon`. Two spoon-to-mouth cycles over f150–186, 18 frames each.
+8. Family member's arm (left edge): sleeve `sleeve2`, hand `skin2`. f150–162: enters from (−80, 470) to (230, 430) and flicks at f160 (release). f162–172: retracts off-frame.
+9. Orange: circle r 36 `orange`, `orangeHighlight` crescent at top-left, 14×8 `leaf` on top. Flight path: quadratic Bézier from (240, 430) through control point (720, 160) to (1270, 430). It spins 18° per frame at normal speed.
+10. **Speed ramp (time remap for the whole shot):** define scene time `t3(f)`:
+    - f ≤ 177: `t3 = f`
+    - 177 < f ≤ 195: `t3 = 177 + (f − 177) × 0.4` (equals 184.2 at f195)
+    - 195 < f ≤ 201: `t3 = 184.2 + (f − 195) × 0.7` (equals 188.4 at f201)
+    - f > 201: `t3 = 188.4 + (f − 201)`
+
+    Animate everything in shot 3 against `t3`. The orange launches at t3 = 160 and reaches the hand at t3 = 184.2, so the catch lands exactly on f195. During f177–195, draw four ghost copies of the orange at its previous positions, opacity 0.22, 0.16, 0.10 and 0.05.
+11. Catch: his right hand rises (pose CATCH) from the spoon position to (1270, 430), arriving at f195. His head and eyes do not turn. The orange snaps into the palm; the hand squashes (scaleY 0.92) for 2 frames. Chime at f195.
+12. f198–209: he tucks the orange into the hoodie pocket at (1060, 700) and goes back to eating.
+13. Whip-pan out f210–224: the whole scene moves translateX 0 → −1400 with `Easing.in(Easing.cubic)` while the horizontal blur ramps 0 → 40.
+
+### Shot 4: Stadium steps (f225–299). Low angle at step level, profile view, handheld (A = 2 px). Key light: soft overcast from above.
+1. Sky: y 0–520, vertical gradient `skyTop` → `skyBottom`, plus three soft cloud ellipses in white at 40%, blurred 30 px.
+2. Distant field: strip y 520–560, `field`, blurred 4 px.
+3. Steps rising from bottom-left to top-right. Each step: tread 220 px wide and 24 px thick (`stepTop`), riser 88 px tall (`stepRiser`), a 4 px `stepShadow` line under each tread lip. The first riser's bottom-left corner is at (−120, 1080); each step is offset (+220, −88) from the one before. Draw enough steps to leave the frame at top-right.
+4. Railing: a 12 px `rail` tube parallel to the step line, 380 px above the tread edges, with 8 px posts every 440 px.
+5. Runner: rig scale 1.6; the top of the frame crops more of him as he climbs. Hoodie, jeans, white shoes. Pose cycle RUN_UP_STAIRS. Eight footfalls, each landing on the next tread: f233, 241, 248, 256, 263, 271, 278, 285. He enters from the left (x about −100) and the last footfall lands at about x 1750.
+6. A slow tilt-up follow: the scene's translateY goes 0 → +60 over the shot.
+7. Whip-pan in f225–233: the scene enters from translateX +1400 → 0 with `Easing.out(Easing.cubic)` while the blur ramps 40 → 0.
+8. f285: PHYSICAL EXERCISE completes on the last footfall. f285–299: he exits top-right; the steps are left empty.
+
+### Shot 5: Guitar chord (f300–389). High-angle over-the-shoulder medium close-up, slow push-in. Key light: window, upper left.
+1. Background: `wallDay`, with a `warmPatch` parallelogram at upper left at 25%, blurred 40 px.
+2. Foreground over-shoulder: a soft rounded shape of his left shoulder in `hoodie`, x 0–520, y 700–1080, blurred 6 px.
+3. Guitar neck: runs from the headstock (off-frame upper left) toward the body at lower right, at an angle of +18°. Fretboard band 120 px wide, `fretboard`. The nut (`nut`) is centered at (380, 410); the neck's centerline continues from there at +18° toward the sound hole. Fret wires 4 px `fret`, perpendicular to the neck, at these distances from the nut along the neck: 120, 233, 340, 441, 536, 626, 711 px. Inlay dots r 9 `inlay` centered between frets at positions 3, 5 and 7.
+4. Six strings along the neck, inset 15 px from the fretboard edges and spaced evenly, widths 1.5, 1.8, 2.2, 2.6, 3.0 and 3.4 px (high E to low E), `string`.
+5. Guitar body at lower right: x 1300–1920, y 600–1080, `guitarBody` with a `guitarBodyEdge` rim; sound hole circle r 110 at (1560, 820), `soundhole`, with an 8 px `guitarBodyEdge` rosette ring.
+6. Fretting hand (left hand, large scale, `skin` with `skinShadow` at the knuckles), playing an F major barre chord:
+   - index finger: a capsule 26×150 lying across all six strings just behind fret 1;
+   - middle fingertip: G string (third string), fret 2;
+   - ring fingertip: A string (fifth string), fret 3;
+   - pinky tip: D string (fourth string), fret 3.
+   - **Wrong at first (f300–329):** the ring fingertip sits 10 px short of its target.
+   - **Fix (f330–350):** the ring finger slides into place; the index finger presses harder (its drop shadow offset grows 3 → 5 px).
+7. Strums (the strumming hand stays off-frame):
+   - f315 buzz: each string is drawn as a sine wave (amplitude 3 px decaying to 0 over 14 frames, 0.08 cycles per px). The B string (second string) instead gets an irregular zigzag at 5 px amplitude.
+   - f360 clean: every string gets a smooth sine at 4 px, decaying over 24 frames, plus a warm glow across the fretboard (`warmPatch` at 15% → 0 over 20 frames). COGNITIVE FITNESS completes.
+8. Push-in: scale 1.00 → 1.08 across f300–389, transform origin at (560, 470).
+
+### Shot 6: Phone insert (f390–434). High-angle close-up over the shoulder, handheld (A = 3 px), drifting translateX 0 → −30.
+1. Background: vertical gradient `phoneBlurTop` → `phoneBlurBottom` plus six soft blocks in `cabinet` at 40%, all blurred 18 px (shallow focus).
+2. Phone: rounded rect 560×1120, radius 64, `phoneBody`, centered at (980, 610), rotated −8°, scaleY 0.96. Screen inset 22 px, `screenBg`. Generic original interface: no status bar text, no real phone-maker design.
+3. f390–398, contact card:
+   - avatar circle r 96 in `avatar`, about 30% down the screen, with the first letter of `CONTACT_NAME` (uppercase; "?" if empty) in Inter 700 96 px white;
+   - `CONTACT_NAME` in Inter 600 56 px white, 150 px below the avatar center;
+   - a green call button: circle r 58 in `callGreen` at bottom center, with a simple white handset glyph.
+4. f396: a thumb (`skin`, capsule 70×170, from the lower right) taps the call button: the thumb moves 20 px and back; the button scales to 0.92 for 3 frames.
+5. f399–434, calling screen: below the name, three dots (r 6, `statusDots`) pulse in sequence (no words). At the bottom, three round buttons r 52, 150 px apart: mute (`button`, white mic glyph), speaker (`button`, white speaker glyph), end (`endRed`, white handset glyph).
+6. f414: the thumb taps speaker; the speaker button turns `buttonActive` with a `screenBg` glyph, with a 3-frame scale pop.
+7. The HUD label EMOTIONAL WELL-BEING appears at f390.
+
+### Shot 7: Kitchen walk (f435–524). Medium shot, handheld follow (A = 3 px). Key light: low, warm window, left.
+1. Same kitchen layout as shot 3, now late afternoon: window glass `windowLateTop` → `windowLateBottom`; a stretched sun patch on the wall to the right of the window in `lateSunPatch` at 30%; an overall warm grade (`#FFB35C` at 8%, soft-light).
+2. Island in the foreground as in shot 3.
+3. Character: rig scale 1.25, hoodie, backpack (a 22 px strap over the right shoulder; the pack body is a 180×230 rounded rect, radius 30, `backpack`, behind his back). Pose HOLD_PHONE_CHEST with the phone in his left hand, back facing camera (70×140 `phoneBody`).
+   - Walks right to left with the WALK cycle, from x 1380 at f435 to x 980.
+   - f465: his right hand dips to the counter at (1180, 650) and picks up keys: a ring r 14 in `keyRing` and two 10×34 keys in `keyGold` and `keyRing`.
+   - f480–505: his steps shorten to zero; he stops at x 980 by f505.
+   - f505–524: head tilts up 12° toward the top-right corner; pupils move to the upper right at f510 (expression glance-up), looking at the HUD. Hold.
+4. The camera follows him: camera x is the character's x smoothed with a 10-frame lag, plus the handheld shake.
+5. No speech bubbles. The grandmother exists only as audio.
+
+### Shot 8: Close-up and swipe (f525–599). Close-up, eye level, static. Key light: warm, left; cool rim, right.
+1. Background: vertical gradient `cuBgTop` → `cuBgBottom` with nine bokeh circles, r 40–110, alternating `bokehA` and `bokehB`, opacity 0.15–0.25, blurred 20 px.
+2. Head: center (880, 600), ellipse rx 300, ry 360, `skin`; hair cap `hair`; ear on the left; hood ring at the bottom (60 px `hoodieShadow`); hoodie shoulders across y 900–1080 in `hoodie`.
+   - Eyes: ellipses 34×44 `eyes` with r 6 `catchlight`. Brows: 110×18 `brows`. Nose: curved path `skinShadow`. Mouth: 8 px stroke `mouthLine`, 120 px wide.
+   - Lighting: `warmKey` at 30% soft-light over the left half; `coolRim` at 15% along the right edge.
+3. Expressions:
+   - f525–548: looking up and right (pupils +12 x, −14 y), brows neutral.
+   - f548–560: exhale: shoulders drop 8 px, brows relax 4 px lower and flatter, a slow blink over f552–556.
+   - f556–566: a small smile starts (mouth corners up 6 px).
+4. The swipe:
+   - f560–570: his right hand enters from the bottom right (hoodie-sleeve forearm, `skin` hand, index finger extended, other fingers curled), the fingertip moving from (1500, 1200) to (1400, 158), the middle of the HUD panel's left edge, with `Easing.out(Easing.cubic)`.
+   - f570–585: the fingertip moves straight right to (2120, 158) with `Easing.in(Easing.cubic)`, dragging the HUD (section 6), which ends at translateX +720.
+   - f585–599: the hand drops out of frame to the bottom right (`Easing.in(Easing.quad)`); his eyes return down and to the left toward the phone (pupils −10 x, +12 y); the smile holds.
+
+### Shot 9: Kitchen floor (f600–764). Floor-level wide, slow push-in. Key light: warm pendant, upper left; cool window, right.
+1. Floor: y 760–1080, `floorWood`, with 2 px `plankLine` lines converging toward a vanishing point at (960, 520).
+2. Lower cabinets along the back: y 470–760, `cabinet`, 6 px `cabinetShadow` door gaps every 260 px, handles 70×8 horizontal `cabinetHandle` at y 500, toe kick y 740–760 `toeKick`.
+3. Countertop edge: y 440–470, `counterTop` with `counterEdge`.
+4. Wall above: y 0–440, `kitchenWallEvening`.
+5. Window above the counter, right: x 1250–1720, y 90–400, 14 px `windowFrameEvening` frame; glass `windowEveningTop` → `windowEveningBottom`, not blown out; three r 3 dots of `distantLights`.
+6. Pendant lamp: a 3 px `pendantCord` from y 0 to 120 at x 640; shade trapezoid 70 px wide at the top and 180 px at the bottom, 90 px tall, `pendantShade`, with a `pendantInner` ellipse at its bottom. Light cone: radial gradient centered (760, 640), radius 620, `pendantGlow` at 45% → 0, soft-light.
+7. Evening grade: `dimOverlay` at 25% multiply over everything outside the light cone (feathered mask).
+8. Character: rig scale 1.0.
+   - f600: standing, leaning back against the cabinet at x 880, feet at y 900, phone in his right hand at chest height, speaker side up.
+   - f600–640: SLIDE_DOWN (back stays on the cabinet, hips descend 220 px).
+   - f640: SIT_FLOOR: knees up, phone resting on his right knee at about (1010, 760), left arm around his left knee.
+   - f640–660: settles with a small shoulder roll.
+   - f660–690: laugh: three shoulder bounces of 6 px, one every 10 frames; expression laugh.
+   - f690–764: smiling, listening; a nod over f720–732 (head down 5° and back).
+9. Push-in: scale 1.00 → 1.12 across f600–764, transform origin (900, 720), `Easing.inOut(Easing.sin)`.
+10. Why-line overlay from f675 (section 8). No HUD.
+
+### Shot 10: High wide from the doorway (f765–869). High angle looking down into the kitchen, nearly static.
+1. Frame within a frame: door jambs x 0–90 and x 1830–1920, full height, plus a header y 0–60, all `doorJamb`.
+2. Floor: `floorWood` filling y 300–1080, with plank lines converging toward a vanishing point above the frame at (960, −600).
+3. Island seen from above: a skewed rect x 420–1000, y 360–560, `counterTop` top with `cabinet` sides. On it: the orange from shot 3 (r 14, `orange`) at (640, 470).
+4. Lower cabinets along the right wall: a skewed band x 1300–1830, y 200–1080, `cabinet`, with `counterTop` tops.
+5. Character: rig scale 0.42, pose SIT_FLOOR, seated against the right cabinets at (1240, 760), phone on his knee.
+6. Light pool: radial gradient centered (1240, 760), radius 380, `pendantGlow` at 55% → 0. `dimOverlay` at 45% over everything outside the pool (radial mask feathered 120 px).
+7. Props that echo the day: the guitar leaning at the left, partly behind the left jamb (x 140–250, y 380–900; body two `guitarBody` ellipses 110×160, neck 22 px `fretboard`); the running shoes by the doorway at (300, 960) and (360, 975), 60×24 each in `shoeUpper` and `shoeSole`; the backpack at (1080, 600), leaning on the island.
+8. Motion: push-in scale 1.00 → 1.03 across the shot; breathing (torso scale 1.00 ↔ 1.01 on a 45-frame cycle); one small laugh bounce at f780.
+9. f765: PERSONAL BEST (section 6). f771: fifth pip. f795: call to action and credit line (section 8). f840–869: hold.
+
+---
+
+## 8. Team text, end card and placeholders (`src/teamText.ts`, `src/overlays/`)
+
+```ts
+// The team writes these. Claude must never fill them in.
+export const WHY_LINE = '';      // max 7 words
+export const CTA_LINE = '';      // max 5 words
+export const CONTACT_NAME = '';  // what the lead actually calls their grandparent
+export const CHAPTER_NAME = '';  // e.g. the chapter's name, without the word HOSA
+```
+
+**Placeholder warnings:** if `WHY_LINE` is empty or longer than 7 words, draw a 4 px dashed `C.warning` box in its place with the text "WHY-LINE: team writes this (max 7 words)" in the placeholder-warning style. Do the same for `CTA_LINE` ("CTA: team writes this (max 5 words)"). An empty `CONTACT_NAME` shows "[NAME]" on the phone; an empty `CHAPTER_NAME` shows "[CHAPTER]". Also log a console warning at render time. These warnings are meant to be impossible to miss.
+
+**Why-line (shot 9, f675–764):**
+- Text block: `left: 120px; bottom: 178px; max-width: 1100px`, why-line style.
+- Source tag beneath it at `left: 120px; bottom: 130px`, exact text "Lancet Commission, 2024", source-tag style.
+- Scrim: a full-width linear gradient from `C.scrim` at the bottom edge to transparent 380 px up.
+- Entrance at f675: opacity 0→1 and translateY 16→0 over 12 frames (text and scrim together). It ends with the cut at f765.
+
+**End card (shot 10):**
+- PERSONAL BEST and pips: section 6.
+- Call to action: centered horizontally, `top: 820px`, call-to-action style.
+- Credit line: centered, `top: 930px`, credit style, exact text: `` `Habits: Hilarity for Charity · wearehfc.org · ${CHAPTER_NAME} HOSA` `` (the separators are middle dots).
+- Both enter at f795: opacity 0→1 and translateY 14→0 over 14 frames.
+
+---
+
+## 9. Audio (`src/audio/`, `scripts/`)
+
+The team records and supplies every real sound. Build a manifest so each slot plays the team's file if it exists, otherwise a `TEMP_` placeholder if one is listed, otherwise nothing. `scripts/check-audio.mjs` scans `public/audio/` and writes `src/audio/available.json`; run it before every preview and render.
+
+| Slot | Team file | Start f | End f | Volume | Notes |
+|---|---|---|---|---|---|
+| start_tone | start-tone.wav | 0 | 10 | 0.8 | TEMP allowed |
+| roomtone_bedroom | roomtone-bedroom.wav | 0 | 105 | 0.25 | |
+| drawer_slide | drawer-slide.wav | 0 | 30 | 0.7 | |
+| drawer_thunk | drawer-thunk.wav | 45 | 57 | 0.9 | |
+| lamp_click | lamp-click.wav | 90 | 96 | 0.8 | |
+| roomtone_night | roomtone-night.wav | 90 | 105 | 0.3 | |
+| birds | birds.wav | 105 | 150 | 0.4 | fade out f140–150 |
+| chime | chime.wav | 105, 195, 285, 360 | +30 each | 0.7 | TEMP allowed |
+| music | music.wav | 105 | 570 | 0.55, eased to 0.35 over f435–450 | crossfade out over f480–510; hard stop f570 |
+| music_muffled | music-muffled.wav | 480 | 570 | crossfade in over f480–510 | hard stop f570; the team bakes the muffled sound into this file |
+| spoon | spoon-clink.wav | 158 | 168 | 0.5 | |
+| whoosh | whoosh.wav | 210, 570 | +20 each | 0.7 | TEMP allowed; the first one spans the whip-pan out and in |
+| footstep | footstep.wav | 233, 241, 248, 256, 263, 271, 278, 285 | +8 each | 0.8 | |
+| roomtone_outdoor | roomtone-outdoor.wav | 225 | 300 | 0.3 | |
+| guitar_buzz | guitar-buzz.wav | 315 | 345 | 0.9 | |
+| guitar_clean | guitar-clean.wav | 360 | 390 | 0.9 | |
+| ui_tap | ui-tap.wav | 396, 414 | +4 each | 0.5 | TEMP allowed |
+| ring | phone-ring.wav | 399 | 435 | 0.5 | |
+| footsteps_kitchen | footsteps-kitchen.wav | 435 | 505 | 0.5 | |
+| keys | keys.wav | 465 | 480 | 0.6 | |
+| call | call.wav | 435 | 840 | 1.0 | the team's real recorded call, already phone-EQ'd; fade out f810–840 |
+| roomtone_kitchen | roomtone-kitchen.wav | 570 | 840 | 0.35 | fridge hum |
+| teen_laugh | teen-laugh.wav | 660 | 700 | 0.9 | |
+| guitar_callback | guitar-clean.wav | 705 | 760 | 0.45 | |
+| pb_chime | pb-chime.wav | 765 | 820 | 0.8 | TEMP allowed |
+
+From f840 to f869 nothing plays.
+
+**`scripts/make-temp-audio.mjs`** writes 48 kHz, 16-bit mono WAVs to `public/audio/`, each prefixed `TEMP_`:
+- `TEMP_start-tone.wav`: 880 Hz sine, 120 ms, 5 ms attack, 80 ms release.
+- `TEMP_chime.wav`: F5 (698.46 Hz) + C6 (1046.50 Hz) sines at 0.35 amplitude each, 4 ms attack, exponential decay τ = 0.22 s, 0.9 s long.
+- `TEMP_pb-chime.wav`: F4 349.23, A4 440.00, C5 523.25, F5 698.46 and C6 1046.50 Hz, 10 ms attack, decay τ = 0.6 s, 2.0 s long.
+- `TEMP_whoosh.wav`: white noise, 0.35 s, band-pass sweeping 300 Hz → 3 kHz, Hann envelope.
+- `TEMP_ui-tap.wav`: 2 kHz click, 8 ms.
+- `TEMP_click-track.wav`: 1 kHz ticks, 15 ms each, at 120 BPM for 29 s. It plays only when a composition prop `clickTrack` is true (default false), for checking sync.
+
+When any `TEMP_` file is used, print a large "TEMP AUDIO IN USE" warning at render time. The README must say that every `TEMP_` sound has to be replaced with team-made audio before the video is used anywhere.
+
+---
+
+## 10. Vertical version (`PersonalBestVertical`, 1080×1920)
+
+- Reuse each shot unchanged in its 1920×1080 design space, scale it by 1920/1080 (1.7778) so it fills the height, and crop horizontally around a focus point. The visible width is 607.5 px of the original design.
+- Focus x per shot (in 16:9 design coordinates), clamped so the crop never leaves the art:
+  - Shot 1: 1300 at f0 → 1000 at f22, then 1000.
+  - Shot 2: 960.
+  - Shot 3: 700 at f160 → 1200 at f195 (follows the orange), then 1100.
+  - Shot 4: the runner's x.
+  - Shot 5: 600.
+  - Shot 6: 980.
+  - Shot 7: the character's x.
+  - Shot 8: 900.
+  - Shot 9: 900.
+  - Shot 10: 1240.
+- HUD and PERSONAL BEST: `right: 64px; top: 220px`, same sizes and behavior. The panel then spans about x 576–1016, y 220–408.
+- Shot 8's hand in vertical: the cropped scene would put the fingertip off-screen, so draw the hand in screen space instead. Its fingertip moves from (1300, 2100) to (592, 314), the middle of the panel's left edge, over f560–570, then straight right to (1312, 314) over f570–585, dragging the HUD the same way (ending at translateX +720, fully off-screen).
+- Why-line: `left: 64px; bottom: 520px; max-width: 900px`; source tag at `left: 64px; bottom: 470px`.
+- Call to action: centered, `top: 1180px`, `max-width: 940px`, may wrap to two lines. Credit line: centered, `top: 1300px`, `max-width: 940px`, may wrap.
+- Safe zones: no text in the bottom 380 px, and none in the right 140 px between y 900 and 1700 (platform buttons).
+
+---
+
+## 11. Quality checks (all must pass before final renders)
+
+1. `scripts/verify-timeline.mjs` asserts: both main compositions are 870 frames at 30 fps; shot lengths sum to 870; every key event marked "Yes" in section 3 is a multiple of 15.
+2. Every literal on-screen string appears exactly as written: "SLEEP", "NUTRITION", "PHYSICAL EXERCISE", "COGNITIVE FITNESS", "EMOTIONAL WELL-BEING", "8 HRS", "PERSONAL BEST", "Lancet Commission, 2024", and the credit line. No other words appear anywhere except the team placeholders.
+3. Render review stills for both compositions at frames 0, 24, 45, 85, 95, 105, 130, 165, 185, 195, 240, 285, 320, 360, 396, 415, 470, 510, 548, 575, 590, 640, 675, 705, 770, 800 and 860, one per command, for example `npx remotion still PersonalBest review/16x9/frame-0195.png --frame=195`. Open every still and check:
+   - nothing important is cut off, especially in the vertical crop;
+   - HUD text is exact, legible and never overlaps the art awkwardly;
+   - the colors match the palette;
+   - no logo, brand mark or real interface appears;
+   - the placeholder warnings show while the team text is empty.
+4. No `Math.random()` or `Date.now()` anywhere in `src/`.
+5. Final renders:
+   - `npx remotion render PersonalBest out/personal-best-16x9.mp4 --codec=h264 --crf=18`
+   - `npx remotion render PersonalBestVertical out/personal-best-9x16.mp4 --codec=h264 --crf=18`
+   - If `ffprobe` is available, confirm each file is 29.0 seconds (870 frames).
+6. Write `README.md`: how to edit `teamText.ts`, which audio files go in `public/audio/` and their exact names, how to preview, how to render, and the warning about `TEMP_` audio.
+
+---
+
+## 12. Build order and checkpoints
+
+1. Scaffold, `constants.ts`, `timeline.ts`, `teamText.ts`, `verify-timeline.mjs` (run it).
+2. The HUD and the `HudTest` composition.
+3. The character rig and `RigTest`. **Checkpoint: show me stills of HudTest at f105, f195 and f575, and every RigTest pose.**
+4. Shots 1 and 2.
+5. Shots 3, 4 and 5 (including the speed ramp and the whip-pan).
+6. Shots 6, 7 and 8 (including the swipe). **Checkpoint: show me the review stills for f0–599.**
+7. Shots 9 and 10, the why-line and the end card.
+8. The audio manifest, `check-audio.mjs` and `make-temp-audio.mjs`.
+9. The vertical composition. **Checkpoint: show me all review stills for both formats.**
+10. Quality checks, final renders, README. Then tell me in a few lines what's done, what you chose where this spec left room, and anything that still needs the team.

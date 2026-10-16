@@ -1,4 +1,5 @@
 import { AbsoluteFill, Sequence, useVideoConfig } from 'remotion';
+import { AudioTrack } from './audio/AudioTrack';
 import { Hud } from './hud/Hud';
 import { PersonalBest } from './hud/PersonalBest';
 import { EndCard } from './overlays/EndCard';
@@ -17,7 +18,7 @@ export type VideoProps = {
  * The 16:9 PSA. Finishing layers in section 4's z-order:
  * scene art → vignette → grain → why-line / end card → HUD / PERSONAL BEST.
  */
-export const PersonalBestVideo: React.FC<VideoProps> = () => {
+export const PersonalBestVideo: React.FC<VideoProps> = ({ clickTrack }) => {
   const { fps } = useVideoConfig();
   return (
     <AbsoluteFill style={{ backgroundColor: '#000000' }}>
@@ -32,6 +33,7 @@ export const PersonalBestVideo: React.FC<VideoProps> = () => {
       </Sequence>
       <Hud layout="landscape" />
       <PersonalBest layout="landscape" />
+      <AudioTrack clickTrack={clickTrack} />
     </AbsoluteFill>
   );
 };

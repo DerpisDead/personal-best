@@ -6,6 +6,8 @@
  */
 
 import { Config } from "@remotion/cli/config";
+import available from "./src/audio/available.json";
+import { resolveSlot, SLOTS } from "./src/audio/manifest";
 
 Config.setRspack(true);
 Config.setVideoImageFormat("jpeg");
@@ -16,4 +18,21 @@ Config.setDefaultPremountInSeconds(2);
 // one Remotion downloads (useful on machines that can't reach the download).
 if (process.env.REMOTION_BROWSER_EXECUTABLE) {
   Config.setBrowserExecutable(process.env.REMOTION_BROWSER_EXECUTABLE);
+}
+
+// Section 9: a large warning whenever TEMP_ placeholder audio would be used.
+const temp = SLOTS.map((s) => resolveSlot(s, available.files)).filter((r) => r?.temp);
+if (temp.length > 0) {
+  console.warn(
+    [
+      "",
+      "########################################################",
+      "###                TEMP AUDIO IN USE                 ###",
+      "###  Replace every TEMP_ sound with team-made audio  ###",
+      "###  before this video is used anywhere.             ###",
+      "########################################################",
+      ...temp.map((r) => `  - ${r?.file}`),
+      "",
+    ].join("\n"),
+  );
 }
